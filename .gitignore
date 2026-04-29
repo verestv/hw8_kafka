@@ -11,3 +11,6 @@ wheels/
 main.py
 twvs.csv.zip
 
+data/
+*.zip
+*:Zone.Identifier
