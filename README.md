@@ -4,16 +4,16 @@
 
 The project contains four main parts:
 
-- A Kafka installation in Docker Compose using a single-node KRaft setup, where the same Kafka container acts as both broker and controller for local development. File: `docker-compose.yml`.[1]
-- A Python producer that reads the CSV file with `csv.DictReader`, converts each row into JSON, updates `created_at`, and sends the record to Kafka. File: `producer/producer.py`.[2]
-- A Docker image for the producer, File: `producer/Dockerfile`.[3]
-- Simple shell scripts to build and run the producer container on the same Docker network as Kafka. Files: `scripts/build.sh` and `scripts/run-producer.sh`.[4]
+- A Kafka installation in Docker Compose using a single-node KRaft setup, where the same Kafka container acts as both broker and controller for local development. File: `docker-compose.yml`.
+- A Python producer that reads the CSV file with `csv.DictReader`, converts each row into JSON, updates `created_at`, and sends the record to Kafka. File: `producer/producer.py`.
+- A Docker image for the producer, File: `producer/Dockerfile`.
+- Simple shell scripts to build and run the producer container on the same Docker network as Kafka. Files: `scripts/build.sh` and `scripts/run-producer.sh`.
 
 ## Architecture overview
 
-The Kafka container is the central message broker and controller. Producers send data into topics, brokers store the messages in the topic log, and consumers are separate client processes that read those messages later.[1]
+The Kafka container is the central message broker and controller. Producers send data into topics, brokers store the messages in the topic log, and consumers are separate client processes that read those messages later.
 
-In this homework, the Python producer writes JSON messages into the `tweets` topic, and the Kafka console consumer is used only as a demonstration tool to verify that the messages arrive correctly. The console consumer prints the message value it receives, so it shows JSON because the producer sends JSON.[1]
+In this homework, the Python producer writes JSON messages into the `tweets` topic, and the Kafka console consumer is used only as a demonstration tool to verify that the messages arrive correctly. The console consumer prints the message value it receives, so it shows JSON because the producer sends JSON.
 
 ## Step-by-step procedure
 
@@ -27,7 +27,7 @@ uv add kafka-python
 ```
 
 ## Step 2: Project tree
-
+```txt
 hw8_kafka/
 ├── docker-compose.yml
 ├── data/
@@ -40,7 +40,7 @@ hw8_kafka/
 │   └── run-producer.sh
 ├── pyproject.toml
 └── uv.lock
-
+```
 
 ## Step 3: Start Kafka with Docker Compose
 
@@ -81,7 +81,7 @@ docker exec -it kafka /opt/kafka/bin/kafka-console-consumer.sh \
   --topic tweets \
   --from-beginning
 ```
-now it waits for messages from `tweets` and prints them to the terminal.[1]
+now it waits for messages from `tweets` and prints them to the terminal.
 
 ## Step 6: Implement the Python producer
 
@@ -125,6 +125,6 @@ This script runs the producer container:
 
 
 ## Step 10: Results
-at screenshots folder: 
+in screenshots folder: 
 `containers.png` - running containers
-`running_programm_and_kafka_cli_output.png` demostration of reading the topic contents using the Kafka console client.
+`running_programm_and_kafka_cli_output.png` - demostration of reading the topic contents using the Kafka console client.
