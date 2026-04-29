@@ -1,33 +1,37 @@
-# Kafka Homework README
+# Kafka Consumer Homework README
+
+> **This branch extends [hw8_kafka master branch](https://github.com/verestv/hw8_kafka/tree/master).**
+> Complete all steps from that README before proceeding here.
 
 ## What was built
 
-The project contains four main parts:
+This branch adds a Kafka consumer on top of the existing producer setup:
 
-- A Kafka installation in Docker Compose using a single-node KRaft setup, where the same Kafka container acts as both broker and controller for local development. File: `docker-compose.yml`.[1]
-- A Python producer that reads the CSV file with `csv.DictReader`, converts each row into JSON, updates `created_at`, and sends the record to Kafka. File: `producer/producer.py`.[2]
-- A Docker image for the producer, File: `producer/Dockerfile`.[3]
-- Simple shell scripts to build and run the producer container on the same Docker network as Kafka. Files: `scripts/build.sh` and `scripts/run-producer.sh`.[4]
+- A Python consumer that reads messages from the `tweets` topic, groups them by the minute extracted from the `created_at` field, and writes each group into a separate CSV file. File: `consumer/consumer.py`.
+- A Docker image for the consumer. File: `consumer/Dockerfile`.
+- Simple shell scripts to build and run the consumer container on the same Docker network as Kafka. Files: `scripts/build-consumer.sh` and `scripts/run-consumer.sh`.
+- An `output/` directory where the consumer writes minute-grouped CSV files on the host machine via a bind mount.
 
 ## Architecture overview
 
-The Kafka container is the central message broker and controller. Producers send data into topics, brokers store the messages in the topic log, and consumers are separate client processes that read those messages later.[1]
-
-In this homework, the Python producer writes JSON messages into the `tweets` topic, and the Kafka console consumer is used only as a demonstration tool to verify that the messages arrive correctly. The console consumer prints the message value it receives, so it shows JSON because the producer sends JSON.[1]
+Kafka stores all incoming messages in the `tweets` topic log. The consumer reads new messages as they arrive, parses the JSON, extracts `author_id`, `created_at`, and `text`, and writes each message into a CSV file named after the minute it was sent. The producer and consumer run as separate containers on the same Docker Compose network, communicating through the Kafka broker at `kafka:9093`.
 
 ## Step-by-step procedure
 
-## Step 1: Initialize the Python project with uv
+## Step 1: Ensure homework 8 is working
 
-In the project root directory:
+The Kafka broker must already be running and the `tweets` topic must exist. Confirm with:
 
 ```bash
-uv init
-uv add kafka-python
+docker compose up -d
+docker exec -it kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --list
 ```
 
 ## Step 2: Project tree
 
+```txt
 hw8_kafka/
 ├── docker-compose.yml
 ├── data/
@@ -35,96 +39,85 @@ hw8_kafka/
 ├── producer/
 │   ├── Dockerfile
 │   └── producer.py
+├── consumer/
+│   ├── Dockerfile
+│   └── consumer.py
+├── output/
 ├── scripts/
 │   ├── build.sh
-│   └── run-producer.sh
+│   ├── run-producer.sh
+│   ├── build-consumer.sh
+│   └── run-consumer.sh
 ├── pyproject.toml
 └── uv.lock
+```
 
+## Step 4: Implement the Python consumer
 
-## Step 3: Start Kafka with Docker Compose
+The file `consumer/consumer.py`:
+
+- connects to Kafka at `kafka:9093` using `KafkaConsumer`,
+- subscribes to the `tweets` topic,
+- deserializes each incoming JSON message,
+- extracts `author_id`, `created_at`, and `text`,
+- parses the `created_at` timestamp to determine the minute bucket,
+- writes each message as a row into `/app/output/tweets_DD_MM_YYYY_HH_MM.csv`,
+- writes the CSV header only if the file does not yet exist,
+- runs continuously until stopped.
+
+## Step 5: Build the consumer image
 
 Run:
 
 ```bash
-docker compose up -d
-```
-
-## Step 4: Create the `tweets` topic
-
-Run:
-
-```bash
-docker exec -it kafka /opt/kafka/bin/kafka-topics.sh \
-  --create \
-  --topic tweets \
-  --partitions 1 \
-  --replication-factor 1 \
-  --bootstrap-server localhost:9092
-```
-
-Verify it exists:
-
-```bash
-docker exec -it kafka /opt/kafka/bin/kafka-topics.sh \
-  --bootstrap-server localhost:9092 \
-  --list
-```
-
-## Step 5: Start the Kafka console consumer
-
-Open a separate terminal and run:
-
-```bash
-docker exec -it kafka /opt/kafka/bin/kafka-console-consumer.sh \
-  --bootstrap-server localhost:9092 \
-  --topic tweets \
-  --from-beginning
-```
-now it waits for messages from `tweets` and prints them to the terminal.[1]
-
-## Step 6: Implement the Python producer
-
-The file `producer/producer.py`:
-
-- reads rows from `data/sample.csv` with `csv.DictReader`,
-- replaces `created_at` with the current timestamp,
-- send each row as JSON to Kafka,
-- sleep between sends to keep a rate of about 10 to 15 messages per second,
-- loop continuously so the stream can run for several minutes.
-
-
-## Step 7: Build the producer image from DockerFile
-
-Run:
-
-```bash
-./scripts/build.sh
+./scripts/build-consumer.sh
 ```
 
 The script runs:
 
 ```bash
-docker build -f producer/Dockerfile -t twitter-producer .
+docker build -f consumer/Dockerfile -t twitter-consumer .
 ```
 
+## Step 6: Start the consumer container
 
-## Step 8: Run the producer container
+Open a terminal and run:
 
-Run:
+```bash
+./scripts/run-consumer.sh
+```
+
+This runs the consumer container:
+
+- on the same Docker Compose network as Kafka,
+- with `BOOTSTRAP_SERVERS=kafka:9093`,
+- with the local `output/` folder mounted into `/app/output` so generated CSV files appear on the host machine.
+
+The consumer starts with `auto_offset_reset="latest"`, meaning it will only process new messages that arrive after it starts. **Start the consumer before the producer.**
+
+## Step 7: Start the producer container
+
+In a separate terminal run:
 
 ```bash
 ./scripts/run-producer.sh
 ```
 
-This script runs the producer container:
+The producer begins sending tweets into the `tweets` topic at 10-15 messages per second. The consumer picks them up and writes minute-grouped CSV files into `output/`.
 
-- on the same Docker Compose network as Kafka,
-- with `BOOTSTRAP_SERVERS=kafka:9093`,
-- with the `data/` folder where our csvs reside, mounted into `/app/data`.
+## Step 8: Verify output files
 
+After a few minutes check the generated files:
 
-## Step 10: Results
-at screenshots folder: 
-`containers.png` - running containers
-`running_programm_and_kafka_cli_output.png` demostration of reading the topic contents using the Kafka console client.
+```bash
+ls output/
+head output/tweets_DD_MM_YYYY_HH_MM.csv
+```
+
+Each file contains only messages sent during that specific minute, with columns `author_id`, `created_at`, and `text`.
+
+## Step 9: Results
+
+In the `screenshots/` folder:
+`containers_hw9.png` - running containers (Kafka + producer + consumer).
+`output_and_content_of_one_file_as_example.png` - results
